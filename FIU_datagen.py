@@ -21,8 +21,7 @@ class DataGenerator(keras.utils.Sequence):
         self,
         batch_size,
         data_path,
-        num_samples_per_block=1024,
-    ):
+        num_samples_per_block=1024):
         'Initialization'
         self.batch_size = 100
         self.data_path =  '/home/foysal/ML/Walking-Pattern-MIMO/Noise_data'
