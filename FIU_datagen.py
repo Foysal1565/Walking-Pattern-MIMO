@@ -24,7 +24,7 @@ class DataGenerator(keras.utils.Sequence):
         num_samples_per_block=1024):
         'Initialization'
         self.batch_size = 100
-        self.data_path =  '/home/foysal/ML/Walking-Pattern-MIMO/Noise_data'
+        self.data_path =  'Noise_data'
         # A frame is a matlab file
         # Each frame has Y number of blocks with length X
         # X * Y < number of samples per frame
