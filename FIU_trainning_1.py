@@ -18,7 +18,7 @@ import tensorflow
 
 from argparse import Namespace
 from CustomModelCheckpoint import CustomModelCheckpoint
-#from DataGenerator import DataGenerator
+from FIU_datagen2 import DataGenerator
 from keras import backend as K
 from keras.callbacks import EarlyStopping
 from keras.layers import Input, Dense, Flatten, Reshape, Lambda
@@ -48,12 +48,12 @@ class BeamLearn(object):
         #os.environ["CUDA_VISIBLE_DEVICES"] = self.args.id_gpu
 
         self.is_2d = self.args.is_2d_model
-        self.num_beams = self.args.num_beams
+        self.num_rx_beams = self.args.num_rx_beams
         self.num_blocks_per_frame = self.args.num_blocks_per_frame
-        self.how_many_blocks_per_frame = self.args.how_many_blocks_per_frame
+        #self.how_many_blocks_per_frame = self.args.how_many_blocks_per_frame
         self.num_samples_per_block = self.args.num_samples_per_block
-        self.num_samples_tot_gain_tx_beam = self.args.num_samples_tot_gain_tx_beam
-        self.num_gains = self.args.num_gains
+        #self.num_samples_tot_gain_tx_beam = self.args.num_samples_tot_gain_tx_beam
+        #self.num_gains = self.args.num_gains
         self.train_perc = self.args.train_perc
         self.valid_perc = self.args.valid_perc
         self.test_perc = self.args.test_perc
@@ -82,9 +82,9 @@ class BeamLearn(object):
                     self.args.kernel_size,
                     self.args.num_of_dense_layers,
                     self.args.size_of_dense_layers,
-                    self.args.input_size,
+                    #self.args.input_size,
                     self.args.num_samples_per_block,
-                    self.args.num_beams
+                    self.args.num_rx_beams
                 )
             else:
                 print('--------- Building 1D model from scratch -----------')
@@ -92,8 +92,9 @@ class BeamLearn(object):
                     self.model = build_model_1d_dense(
                         self.args.num_of_dense_layers,
                         self.args.size_of_dense_layers,
-                        self.args.input_size,
-                        self.args.num_beams
+                        self.args.num_samples_per_block,
+                        #self.args.input_size,
+                        self.args.num_rx_beams
                     )
                 else:
                     self.model = build_model_1d(
@@ -102,8 +103,9 @@ class BeamLearn(object):
                         self.args.kernel_size,
                         self.args.num_of_dense_layers,
                         self.args.size_of_dense_layers,
-                        self.args.input_size,
-                        self.args.num_beams
+                        self.args.num_samples_per_block,
+                        #self.args.input_size,
+                        self.args.num_rx_beams
                     )
 
             self.save_to_json()
@@ -121,67 +123,37 @@ class BeamLearn(object):
 
 # Loading the data from FIU_datagen
 
+    def load_data(self):
+        '''Load data from path into framework.'''
+        if not os.path.exists(self.args.save_path + '/indexes_beamlearn.pkl'):
+            print('--------- Creating indexes and saving them in indexes.pkl -----------')
+         
 
-    def load_data(
-        self,
-        num_samples_per_block=1024,):
-        'Initialization'
-        
-        self.batch_size = 100
-        self.data_path = '/home/foysal/ML/Walking-Pattern-MIMO/Noise_data'
-        # A frame is a matlab file
-        # Each frame has Y number of blocks with length X
-        # X * Y < number of samples per frame
-        self.num_frames_per_pattern=1000
-        self.num_samples_per_frame=128000 # number of samples in one file
-        self.num_blocks_per_frame = 1 # Y
-        self.num_samples_per_block = num_samples_per_block # X
-        self.num_rx_beams = 32 # channel count
-        self.walk_patterns = ['P11', 'P12', 'P21', 'P22', 'P31', 'P41']
-        self.num_patterns=len(self.walk_patterns)
-        if not self.num_samples_per_block * self.num_blocks_per_frame <= self.num_samples_per_frame:
-            print('[ERROR  ]: number of samples per block * number of blocks per frame > number of samples in a frame')
+            train_idxs, valid_idxs, test_idxs = [], [], []
+            train, val = self.train_perc, self.train_perc + self.valid_perc
 
+  
+            self.train_indexes_BL = train_idxs
+            self.valid_indexes_BL = valid_idxs
+            self.test_indexes     = test_idxs
 
-    def __len__(self):
-        'Denotes the number of batches per epoch.'
-        return int(self.num_patterns*(self.num_frames_per_pattern//np.ceil(self.batch_size/self.num_blocks_per_frame)))
+            # Saving the objects:
+            with open(self.args.save_path + '/indexes_beamlearn.pkl', 'wb') as f:  # Python 3: open(..., 'wb')
+                pkl.dump([self.train_indexes_BL,
+                          self.valid_indexes_BL,
+                          self.test_indexes], f)
+        else:
+            with open(self.args.save_path + "/indexes_beamlearn.pkl", 'rb') as f:  # Python 3: open(..., 'rb') note that indexes
+                data_loaded = pkl.load(f)
+            self.train_indexes_BL = data_loaded[0]
+            self.valid_indexes_BL = data_loaded[1]
+            self.test_indexes     = data_loaded[2]
 
-    def __getitem__(self, index):
-        'Generate one batch of data.'
+        print('--------- Indexes check ----------')
+        print("Lenght of training: {} validation: {} testing: {}".format(len(self.train_indexes_BL), len(self.valid_indexes_BL), len(self.test_indexes)))
+        print(len(self.train_indexes_BL) + len(self.valid_indexes_BL) + len(self.test_indexes))
 
-        f_pattern = index % self.num_patterns
-        # if batch size > num_blocks_per_frame we need to use several frames(files)
-        f_trial   = int( (index//self.num_patterns) * np.ceil(self.batch_size // self.num_blocks_per_frame) + 1)
-
-        file = os.path.join( self.data_path,  self.walk_patterns[f_pattern] + '_trial' + str(f_trial))
-
-        block_index = 0
-        out = np.zeros((self.batch_size, self.num_rx_beams, self.num_samples_per_block, 2)) # out(1000, 32, block_size, 2)
-        for i in range(self.batch_size):
-            data = self.next_block(file, block_index)
-            if data is None:
-                block_index = 0
-                f_trial += 1
-                file = os.path.join(self.data_path, self.walk_patterns[f_pattern] + '_trial' + str(f_trial))
-                data = self.next_block(file, block_index)
-
-            out[i, :, :, :] = np.stack((data, f_pattern * np.ones((self.num_rx_beams, self.num_samples_per_block))), axis=2)
-            block_index += 1
-
-        x = out[:,:,:,0]
-        y = out[:,:,:,1]
-
-        return x, y
-
-    def next_block(self, matfile, block_index):
-        if block_index + 1 > self.num_blocks_per_frame:
-            return None
-
-        mat = loadmat(matfile)
-        data = mat['export_noise_mat']
-        data = data[:,(block_index*self.num_samples_per_block):(block_index+1)*self.num_samples_per_block]
-        return data
+    
 
 
 
@@ -189,21 +161,21 @@ class BeamLearn(object):
         self.train_generator_BL = DataGenerator(indexes=self.train_indexes_BL,
                                              batch_size=self.args.batch_size,
                                              data_path=self.args.data_path,
-                                             num_tx_beams=self.args.num_beams,
+                                             num_rx_beams=self.args.num_rx_beams,
                                              num_blocks_per_frame=self.num_blocks_per_frame,
-                                             input_size=self.args.input_size,
+                                             #input_size=self.args.input_size,
                                              num_samples_per_block=self.num_samples_per_block,
-                                             how_many_blocks_per_frame=self.how_many_blocks_per_frame,
+                                             #how_many_blocks_per_frame=self.how_many_blocks_per_frame,
                                              shuffle=False,
                                              is_2d=self.is_2d)
         self.valid_generator_BL = DataGenerator(indexes=self.valid_indexes_BL,
                                              batch_size=self.args.batch_size,
                                              data_path=self.args.data_path,
-                                             num_tx_beams=self.args.num_beams,
+                                             num_rx_beams=self.args.num_rx_beams,
                                              num_blocks_per_frame=self.num_blocks_per_frame,
-                                             input_size=self.args.input_size,
+                                             #input_size=self.args.input_size,
                                              num_samples_per_block=self.num_samples_per_block,
-                                             how_many_blocks_per_frame=self.how_many_blocks_per_frame,
+                                             #how_many_blocks_per_frame=self.how_many_blocks_per_frame,
                                              shuffle=False,
                                              is_2d=self.is_2d)
 
@@ -211,11 +183,11 @@ class BeamLearn(object):
         self.test_generator = DataGenerator(indexes=self.test_indexes,
                                             batch_size=self.args.batch_size,
                                             data_path=self.args.data_path,
-                                            num_tx_beams=self.args.num_beams,
+                                            num_rx_beams=self.args.num_rx_beams,
                                             num_blocks_per_frame=self.num_blocks_per_frame,
-                                            input_size=self.args.input_size,
+                                            #input_size=self.args.input_size,
                                             num_samples_per_block=self.num_samples_per_block,
-                                            how_many_blocks_per_frame=self.how_many_blocks_per_frame,
+                                            #how_many_blocks_per_frame=self.how_many_blocks_per_frame,
                                             is_2d = self.is_2d)
 
 
@@ -340,7 +312,7 @@ class BeamLearn(object):
         parser.add_argument('--save_best_only', type=int, default=1,
                             help='Save only best model during training.')
 
-        parser.add_argument('--num_beams', type=int, default=24,
+        parser.add_argument('--num_rx_beams', type=int, default=24,
                             help='Number of beams.')
 
         parser.add_argument('--test_only', type=int, default=0,
@@ -352,14 +324,14 @@ class BeamLearn(object):
         parser.add_argument('--num_samples_per_block', type=int, default=2048,
                             help='Number of samples per block.')
 
-        parser.add_argument('--input_size', type=int, default=2048,
-                            help='Number of I/Q samples per input.')
+        #parser.add_argument('--input_size', type=int, default=2048,
+                            #help='Number of I/Q samples per input.')
 
         parser.add_argument('--num_blocks_per_frame', type=int, default=15,
                             help='Number of blocks per frame.')
 
-        parser.add_argument('--how_many_blocks_per_frame', type=int, default=1,
-                            help='Number of blocks per frame I take.')
+        #parser.add_argument('--how_many_blocks_per_frame', type=int, default=1,
+                            #help='Number of blocks per frame I take.')
 
         parser.add_argument('--num_samples_tot_gain_tx_beam', type=int, default=10000,
                             help='How many frames we collected for each beam/gain pair.')
