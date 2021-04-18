@@ -91,6 +91,9 @@ class DataGenerator(keras.utils.Sequence):
 
         x = out[:,:,:,0]
         y = out[:,:,:,1]
+        
+        if not self.is_2d:  # this is done just to use 2D models and add a new dimension
+            x = np.squeeze(x)
 
         return x, y
     
