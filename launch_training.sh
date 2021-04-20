@@ -6,11 +6,11 @@ test_only=0
 
 # Dataset parameters
 
-num_samples_tot_gain_tx_beam=10000
-num_samples_per_block=2048
-how_many_blocks_per_frame=1
+#num_samples_tot_gain_tx_beam=10000
+#num_samples_per_block=2048
+#how_many_blocks_per_frame=1
 
-input_size=512
+#input_size=512
 
 # Piradios
 
@@ -24,13 +24,13 @@ input_size=512
 # num_beams=3
 # num_blocks_per_frame=5
 
-num_gains=3
-num_beams=24
-num_blocks_per_frame=15
+#num_gains=3
+#num_beams=24
+#num_blocks_per_frame=15
 
 is_2d_beam=1
 is_2d_model=0
-snr="high"
+#snr="high"
 
 
 # Training parameters
@@ -52,8 +52,8 @@ num_of_dense_layers=0
 size_of_dense_layers=128
 patience=100
 
-root=/home/frestuc/projects/modrec_thz/saved_models/ #customize!
-data_path=/media/michele/rx-12-tx-tm-0-rx-tm-1.h5 #customize
+root= /home/foysal/ML/Walking-Pattern-MIMO/ #customize!
+data_path=/home/foysal/ML/Walking-Pattern-MIMO/Noise_data #customize
 
 save_path=$root
 save_path+="training_code_cl_$num_of_conv_layers"
@@ -69,7 +69,7 @@ save_path+="_2dmodel_$is_2d_model"
 save_path+="_ne_$epochs"
 save_path+="_bs_$batch_size"
 
-python2 ./TrainingCode.py \
+python3 ./FIU_trainning_2.py \
     --data_path $data_path \
     --batch_size $batch_size \
     --train_cnn \
@@ -77,13 +77,13 @@ python2 ./TrainingCode.py \
     --epochs $epochs \
     --save_best_only $save_best_only \
     --stop_param $stop_param \
-    --snr $snr \
+    #--snr $snr \
     --num_blocks_per_frame $num_blocks_per_frame \
-    --how_many_blocks_per_frame $how_many_blocks_per_frame \
+    #--how_many_blocks_per_frame $how_many_blocks_per_frame \
     --num_samples_per_block $num_samples_per_block \
-    --num_samples_tot_gain_tx_beam $num_samples_tot_gain_tx_beam \
-    --num_gains $num_gains \
-    --num_beams $num_beams \
+    #--num_samples_tot_gain_tx_beam $num_samples_tot_gain_tx_beam \
+    #--num_gains $num_gains \
+    #--num_beams $num_beams \
     --train_perc $train_perc \
     --valid_perc $valid_perc \
     --input_size $input_size \
